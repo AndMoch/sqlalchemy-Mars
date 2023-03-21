@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+    {% block content %}
+        <link rel="stylesheet" href="{{url_for('.static', filename='/css/style.css')}}">
+        <h3>Works log</h3>
+        {% for job in jobs %}
+            <ul class="list-group">
+                <li class="list-group-item">Action # {{loop.index}}</li>
+                <li class="list-group-item">
+                    <table class="table">
+                      <thead>
+                        <tr>
+                          <th scope="col">Title of activity</th>
+                          <th scope="col">Team Leader</th>
+                          <th scope="col">Duration</th>
+                          <th scope="col">List of collaborators</th>
+                          <th scope="col">Is finished</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <th scope="row"></th>
+                          <td>{{job[0]}}</td>
+                          <td>{{job[1]}}</td>
+                          <td>{{job[2]}} hours</td>
+                          <td>{{job[3]}}</td>
+                          <td>{% if job[4] == 0 %} Is not finished {% else %} Is finished {% endif %}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                </li>
+            </ul>
+        {% endfor %}
+    {% endblock %}
