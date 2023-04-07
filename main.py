@@ -1,11 +1,11 @@
-from flask import Flask, url_for, render_template, redirect
+from flask import Flask, render_template, redirect, request, abort
 from data import db_session
 from data.users import User
 from data.jobs import Jobs
 from data.loginform import LoginForm
 from data.registerform import RegisterForm
 from data.addjobform import AddJobForm
-from flask_login import LoginManager, login_user, login_required, logout_user
+from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'yandexlyceum_secret_key'
@@ -30,8 +30,8 @@ def index():
     jobs = []
     for job in db_sess.query(Jobs).all():
         elem = job.job, db_sess.query(User).filter(User.id == job.team_leader).first().surname + " " +\
-               db_sess.query(User).filter(User.id == job.team_leader).first().name, job.collaborators,\
-               job.is_finished
+               db_sess.query(User).filter(User.id == job.team_leader).first().name, job.work_size, job.collaborators,\
+               job.is_finished, job.id, job.team_leader
         jobs.append(elem)
     return render_template('work_list.html', title='Работа', jobs=jobs)
 
@@ -66,13 +66,14 @@ def reqister():
 
 
 @app.route('/addjob', methods=['GET', 'POST'])
+@login_required
 def add_job():
     form = AddJobForm()
     if form.validate_on_submit():
         if form.work_size.data <= 0:
             return render_template('addjob.html', title='Регистрация',
                                    form=form,
-                                   message="Пароли не совпадают")
+                                   message="Не указана продолжительность работы")
         db_sess = db_session.create_session()
         if db_sess.query(Jobs).filter(Jobs.job == form.job.data).first():
             return render_template('addjob.html', title='Регистрация',
@@ -88,7 +89,63 @@ def add_job():
         db_sess.add(job)
         db_sess.commit()
         return redirect('/')
-    return render_template('addjob.html', title='Регистрация', form=form)
+    return render_template('addjob.html', title='Добавление работы', form=form)
+
+
+@app.route('/redactjob/<int:id>', methods=['GET', 'POST'])
+@login_required
+def redact_job(id):
+    form = AddJobForm()
+    if request.method == "GET":
+        db_sess = db_session.create_session()
+        jobs = db_sess.query(Jobs).filter(Jobs.id == id,
+                                          Jobs.team_leader == current_user.id).first()
+        if jobs:
+            form.job.data = jobs.job
+            form.team_leader.data = jobs.team_leader
+            form.team_leader(disableed=True)
+            form.work_size.data = jobs.work_size
+            form.collaborators.data = jobs.collaborators
+            form.is_finished.data = jobs.is_finished
+        else:
+            abort(404)
+    if form.validate_on_submit():
+        if current_user.id != 1 and current_user.id != form.team_leader.data:
+            return render_template('addjob.html', title='Редактирование работы',
+                                   form=form,
+                                   message="Пользователь не является капитаном или создателем работы")
+        if form.work_size.data <= 0:
+            return render_template('addjob.html', title='Редактирование работы',
+                                   form=form,
+                                   message="Не указана продолжительность работы")
+        db_sess = db_session.create_session()
+        jobs = db_sess.query(Jobs).filter(Jobs.id == id,
+                                          Jobs.team_leader == current_user.id).first()
+        if jobs:
+            jobs.job = form.job.data
+            jobs.work_size = form.work_size.data
+            jobs.collaborators = form.collaborators.data
+            jobs.is_finished = form.is_finished.data
+            db_sess.commit()
+            return redirect('/')
+        else:
+            abort(404)
+    return render_template('addjob.html', title='Добавление работы', form=form)
+
+
+@app.route('/deletejob/<int:id>', methods=['GET', 'POST'])
+@login_required
+def deletejob(id):
+    db_sess = db_session.create_session()
+    job = db_sess.query(Jobs).filter(Jobs.id == id,
+                                     Jobs.user == current_user.id
+                                     ).first()
+    if job:
+        db_sess.delete(job)
+        db_sess.commit()
+    else:
+        abort(404)
+    return redirect('/')
 
 
 @app.route('/login', methods=['GET', 'POST'])
